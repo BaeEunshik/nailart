@@ -1,11 +1,28 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { useEffect } from "react"
 import { ShaderBackground } from "@/components/shared/ShaderBackground"
 import { useAuth } from "@/contexts/AuthContext"
 
 export default function AuthPage() {
-  const { signInWithGoogle } = useAuth();
+  const { user, loading, signInWithGoogle } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && user) {
+      router.replace("/dashboard");
+    }
+  }, [loading, user, router]);
+
+  if (loading || user) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-black">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex min-h-screen">

@@ -1,8 +1,11 @@
 "use client"
 
 import { ShaderBackground } from "@/components/shared/ShaderBackground"
+import { useAuth } from "@/contexts/AuthContext"
 
 export function Hero() {
+  const { user, loading } = useAuth();
+
   return (
     <div className="relative flex h-screen w-full flex-col items-center justify-center overflow-hidden">
       <ShaderBackground />
@@ -17,12 +20,14 @@ export function Hero() {
           클릭률을 높이는 썸네일, 몇 초 만에 완성하세요.
         </p>
 
-        <a
-          href="/auth"
-          className="rounded-xl border border-white/30 bg-white/10 px-10 py-4 text-lg font-semibold text-white backdrop-blur-md transition hover:bg-white/20"
-        >
-          Get Started
-        </a>
+        {!loading && (
+          <a
+            href={user ? "/dashboard" : "/auth"}
+            className="rounded-xl border border-white/30 bg-white/10 px-10 py-4 text-lg font-semibold text-white backdrop-blur-md transition hover:bg-white/20"
+          >
+            {user ? "Dashboard" : "Get Started"}
+          </a>
+        )}
       </div>
     </div>
   )
