@@ -4,7 +4,14 @@ import * as React from "react"
 import * as TooltipPrimitive from "@radix-ui/react-tooltip"
 import * as PopoverPrimitive from "@radix-ui/react-popover"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
+import Image from "next/image"
 import { BorderBeam } from "@/components/shared/BorderBeam"
+import { useAuth } from "@/contexts/AuthContext"
+import { createClient } from "@/lib/supabase/client"
+
+// --- Constants ---
+const MAX_IMAGES = 10
+const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
 
 // --- Utility ---
 type ClassValue = string | number | boolean | null | undefined
@@ -52,7 +59,7 @@ const PopoverContent = React.forwardRef<
       align={align}
       sideOffset={sideOffset}
       className={cn(
-        "z-50 w-64 rounded-xl bg-[#303030] p-2 text-white shadow-md outline-none",
+        "z-50 w-72 rounded-xl bg-[#303030] p-3 text-white shadow-md outline-none",
         "animate-in data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0",
         "data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95",
         "data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
@@ -117,12 +124,6 @@ const PlusIcon = (props: React.SVGProps<SVGSVGElement>) => (
   </svg>
 )
 
-const Settings2Icon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
-    <path d="M20 7h-9" /><path d="M14 17H5" /><circle cx="17" cy="17" r="3" /><circle cx="7" cy="7" r="3" />
-  </svg>
-)
-
 const SendIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
     <path d="M12 5.25L12 18.75" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -136,45 +137,6 @@ const XIcon = (props: React.SVGProps<SVGSVGElement>) => (
   </svg>
 )
 
-const GlobeIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
-    <circle cx="12" cy="12" r="10" /><path d="M2 12h20" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-  </svg>
-)
-
-const PencilIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
-    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /><path d="m15 5 4 4" />
-  </svg>
-)
-
-const PaintBrushIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg viewBox="0 0 512 512" fill="currentColor" {...props}>
-    <path d="M141.176,324.641l25.323,17.833c7.788,5.492,17.501,7.537,26.85,5.67c9.35-1.877,17.518-7.514,22.597-15.569l22.985-36.556l-78.377-55.222l-26.681,33.96c-5.887,7.489-8.443,17.081-7.076,26.511C128.188,310.69,133.388,319.158,141.176,324.641z" />
-    <path d="M384.289,64.9c9.527-15.14,5.524-35.06-9.083-45.355l-0.194-0.129c-14.615-10.296-34.728-7.344-45.776,6.705L170.041,228.722l77.067,54.292L384.289,64.9z" />
-    <path d="M164.493,440.972c14.671-20.817,16.951-48.064,5.969-71.089l-0.462-0.97l-54.898-38.675l-1.059-0.105c-25.379-2.596-50.256,8.726-64.928,29.552c-13.91,19.742-18.965,41.288-23.858,62.113c-3.333,14.218-6.778,28.929-13.037,43.05c-5.168,11.695-8.63,15.868-8.654,15.884L0,484.759l4.852,2.346c22.613,10.902,53.152,12.406,83.779,4.156C120.812,482.584,147.76,464.717,164.493,440.972z" />
-  </svg>
-)
-
-const TelescopeIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg viewBox="0 0 512 512" fill="currentColor" {...props}>
-    <path d="M452.425,202.575l-38.269-23.11c-1.266-10.321-5.924-18.596-13.711-21.947l-86.843-52.444l-0.275,0.598c-3.571-7.653-9.014-13.553-16.212-16.668L166.929,10.412l-0.236,0.543v-0.016c-3.453-2.856-7.347-5.239-11.594-7.08C82.569-10.435,40.76,14.5,21.516,59.203C2.275,103.827,12.82,151.417,45.142,165.36c4.256,1.826,8.669,3.005,13.106,3.556l-0.19,0.464l146.548,40.669c7.19,3.107,15.206,3.004,23.229,0.37l-0.236,0.566L365.55,238.5c7.819,3.366,17.094,1.125,25.502-5.082l42.957,11.909c7.67,3.312,18.014-3.548,23.104-15.362C462.202,218.158,460.11,205.894,452.425,202.575z" />
-    <path d="M297.068,325.878c-1.959-2.706-2.25-6.269-0.724-9.25c1.518-2.981,4.562-4.846,7.913-4.846h4.468c4.909,0,8.889-3.972,8.889-8.897v-7.74c0-4.909-3.98-8.897-8.889-8.897h-85.789c-4.908,0-8.897,3.988-8.897,8.897v7.74c0,4.925,3.989,8.897,8.897,8.897h4.492c3.344,0,6.388,1.865,7.914,4.846c1.518,2.981,1.235,6.544-0.732,9.25L128.715,459.116c-3.225,4.287-2.352,10.36,1.927,13.569c4.295,3.225,10.368,2.344,13.578-1.943l107.884-122.17l4.036,153.738c0,5.333,4.342,9.691,9.691,9.691c5.358,0,9.692-4.358,9.692-9.691l4.043-153.738l107.885,122.17c3.209,4.287,9.282,5.168,13.568,1.943c4.288-3.209,5.145-9.282,1.951-13.569L297.068,325.878z" />
-  </svg>
-)
-
-const LightbulbIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg viewBox="0 0 24 24" fill="none" {...props}>
-    <path d="M12 7C9.23858 7 7 9.23858 7 12C7 13.3613 7.54402 14.5955 8.42651 15.4972C8.77025 15.8484 9.05281 16.2663 9.14923 16.7482L9.67833 19.3924C9.86537 20.3272 10.6862 21 11.6395 21H12.3605C13.3138 21 14.1346 20.3272 14.3217 19.3924L14.8508 16.7482C14.9472 16.2663 15.2297 15.8484 15.5735 15.4972C16.456 14.5955 17 13.3613 17 12C17 9.23858 14.7614 7 12 7Z" stroke="currentColor" strokeWidth="2" />
-    <path d="M12 4V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M18 6L19 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M20 12H21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M4 12H3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M5 5L6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M10 17H14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-)
-
 const MicIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
     <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
@@ -183,236 +145,451 @@ const MicIcon = (props: React.SVGProps<SVGSVGElement>) => (
   </svg>
 )
 
-// --- Tools List ---
-const toolsList = [
-  { id: "createImage", name: "Create an image", shortName: "Image", icon: PaintBrushIcon },
-  { id: "searchWeb", name: "Search the web", shortName: "Search", icon: GlobeIcon },
-  { id: "writeCode", name: "Write or code", shortName: "Write", icon: PencilIcon },
-  { id: "deepResearch", name: "Run deep research", shortName: "Deep Search", icon: TelescopeIcon, extra: "5 left" },
-  { id: "thinkLonger", name: "Think for longer", shortName: "Think", icon: LightbulbIcon },
-]
+const LoaderIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+  </svg>
+)
+
+const ReferenceIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <rect x="3" y="3" width="7" height="7" rx="1" />
+    <rect x="14" y="3" width="7" height="7" rx="1" />
+    <rect x="3" y="14" width="7" height="7" rx="1" />
+    <rect x="14" y="14" width="7" height="7" rx="1" />
+  </svg>
+)
+
+// --- Types ---
+export interface GeneratedResult {
+  imageData: string
+  mimeType: string
+  text?: string
+  prompt: string
+}
+
+interface RefThumbnail {
+  id: string
+  prompt: string | null
+  image_url: string | null
+}
 
 // --- PromptArea Component ---
-export const PromptArea = React.forwardRef<
-  HTMLTextAreaElement,
-  React.TextareaHTMLAttributes<HTMLTextAreaElement>
->(({ className, ...props }, ref) => {
-  const internalTextareaRef = React.useRef<HTMLTextAreaElement>(null)
-  const fileInputRef = React.useRef<HTMLInputElement>(null)
-  const [value, setValue] = React.useState("")
-  const [imagePreview, setImagePreview] = React.useState<string | null>(null)
-  const [selectedTool, setSelectedTool] = React.useState<string | null>(null)
-  const [isPopoverOpen, setIsPopoverOpen] = React.useState(false)
-  const [isImageDialogOpen, setIsImageDialogOpen] = React.useState(false)
+interface PromptAreaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+  onGenerated?: (result: GeneratedResult) => void
+  onGeneratingChange?: (isGenerating: boolean) => void
+}
 
-  React.useImperativeHandle(ref, () => internalTextareaRef.current!, [])
+export const PromptArea = React.forwardRef<HTMLTextAreaElement, PromptAreaProps>(
+  ({ className, onGenerated, onGeneratingChange, ...props }, ref) => {
+    const { user } = useAuth()
+    const internalTextareaRef = React.useRef<HTMLTextAreaElement>(null)
+    const fileInputRef = React.useRef<HTMLInputElement>(null)
+    const [value, setValue] = React.useState("")
+    const [imagePreviews, setImagePreviews] = React.useState<string[]>([])
+    const [selectedPreviewIndex, setSelectedPreviewIndex] = React.useState<number | null>(null)
+    const [isRefPopoverOpen, setIsRefPopoverOpen] = React.useState(false)
+    const [refThumbnails, setRefThumbnails] = React.useState<RefThumbnail[]>([])
+    const [isLoadingRefs, setIsLoadingRefs] = React.useState(false)
+    const [isGenerating, setIsGenerating] = React.useState(false)
+    const [error, setError] = React.useState<string | null>(null)
 
-  React.useLayoutEffect(() => {
-    const textarea = internalTextareaRef.current
-    if (textarea) {
-      textarea.style.height = "auto"
-      const newHeight = Math.min(textarea.scrollHeight, 200)
-      textarea.style.height = `${newHeight}px`
-    }
-  }, [value])
+    React.useImperativeHandle(ref, () => internalTextareaRef.current!, [])
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setValue(e.target.value)
-    if (props.onChange) props.onChange(e)
-  }
-
-  const handlePlusClick = () => {
-    fileInputRef.current?.click()
-  }
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (file && file.type.startsWith("image/")) {
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string)
+    React.useLayoutEffect(() => {
+      const textarea = internalTextareaRef.current
+      if (textarea) {
+        textarea.style.height = "auto"
+        const newHeight = Math.min(textarea.scrollHeight, 200)
+        textarea.style.height = `${newHeight}px`
       }
-      reader.readAsDataURL(file)
+    }, [value])
+
+    // 참조 팝오버가 열릴 때 썸네일 목록 로드
+    React.useEffect(() => {
+      if (!isRefPopoverOpen || !user) return
+      let cancelled = false
+      const fetchRefs = async () => {
+        setIsLoadingRefs(true)
+        const supabase = createClient()
+        const { data } = await supabase
+          .from("thumbnails")
+          .select("id, prompt, image_url")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(20)
+        if (!cancelled && data) setRefThumbnails(data)
+        if (!cancelled) setIsLoadingRefs(false)
+      }
+      fetchRefs()
+      return () => { cancelled = true }
+    }, [isRefPopoverOpen, user])
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      setValue(e.target.value)
+      setError(null)
+      if (props.onChange) props.onChange(e)
     }
-    event.target.value = ""
-  }
 
-  const handleRemoveImage = (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.stopPropagation()
-    setImagePreview(null)
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ""
+    const handlePlusClick = () => {
+      fileInputRef.current?.click()
     }
-  }
 
-  const hasValue = value.trim().length > 0 || imagePreview
-  const activeTool = selectedTool ? toolsList.find((t) => t.id === selectedTool) : null
-  const ActiveToolIcon = activeTool?.icon
+    const addImages = React.useCallback((files: File[]) => {
+      const remaining = MAX_IMAGES - imagePreviews.length
+      if (remaining <= 0) {
+        setError(`이미지는 최대 ${MAX_IMAGES}개까지 첨부할 수 있습니다.`)
+        return
+      }
 
-  return (
-    <div
-      className={cn(
-        "relative flex flex-col rounded-[28px] p-2 shadow-sm transition-colors bg-[#303030] border-transparent cursor-text overflow-hidden",
-        className
-      )}
-    >
-      <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
+      const validFiles: File[] = []
+      for (const file of files) {
+        if (!file.type.startsWith("image/")) continue
+        if (file.size > MAX_FILE_SIZE) {
+          setError(`"${file.name}" 파일이 5MB를 초과합니다.`)
+          return
+        }
+        validFiles.push(file)
+        if (validFiles.length >= remaining) break
+      }
 
-      {imagePreview && (
-        <Dialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
-          <div className="relative mb-1 w-fit rounded-[1rem] px-1 pt-1">
-            <button type="button" className="transition-transform" onClick={() => setIsImageDialogOpen(true)}>
-              <img src={imagePreview} alt="Image preview" className="h-14.5 w-14.5 rounded-[1rem]" />
-            </button>
-            <button
-              onClick={handleRemoveImage}
-              className="absolute right-2 top-2 z-10 flex h-4 w-4 items-center justify-center rounded-full bg-[#303030] text-white transition-colors hover:bg-[#515151]"
-              aria-label="Remove image"
-            >
-              <XIcon className="h-4 w-4" />
-            </button>
-          </div>
-          <DialogContent>
-            <img src={imagePreview} alt="Full size preview" className="w-full max-h-[95vh] object-contain rounded-[24px]" />
-          </DialogContent>
-        </Dialog>
-      )}
+      if (validFiles.length === 0) return
 
-      <textarea
-        ref={internalTextareaRef}
-        rows={1}
-        value={value}
-        onChange={handleInputChange}
-        placeholder="썸네일을 설명해주세요..."
-        className="w-full resize-none border-0 bg-transparent p-3 text-white placeholder:text-gray-400 focus:ring-0 focus-visible:outline-none min-h-12"
-        {...props}
-      />
+      validFiles.forEach((file) => {
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          setImagePreviews((prev) => {
+            if (prev.length >= MAX_IMAGES) return prev
+            return [...prev, reader.result as string]
+          })
+        }
+        reader.readAsDataURL(file)
+      })
+    }, [imagePreviews.length])
 
-      <div className="mt-0.5 p-1 pt-0">
-        <TooltipProvider delayDuration={100}>
-          <div className="flex items-center gap-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={handlePlusClick}
-                  className="flex h-8 w-8 items-center justify-center rounded-full text-white transition-colors hover:bg-[#515151] focus-visible:outline-none"
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+      const files = event.target.files
+      if (files && files.length > 0) {
+        addImages(Array.from(files))
+      }
+      event.target.value = ""
+    }
+
+    const handlePaste = React.useCallback((e: ClipboardEvent) => {
+      if (isGenerating) return
+      const items = e.clipboardData?.items
+      if (!items) return
+
+      const imageFiles: File[] = []
+      for (const item of items) {
+        if (item.type.startsWith("image/")) {
+          e.preventDefault()
+          const file = item.getAsFile()
+          if (file) imageFiles.push(file)
+        }
+      }
+      if (imageFiles.length > 0) addImages(imageFiles)
+    }, [isGenerating, addImages])
+
+    React.useEffect(() => {
+      const el = internalTextareaRef.current?.closest("[data-prompt-area]")
+      if (!el) return
+      const target = el as HTMLElement
+      target.addEventListener("paste", handlePaste as EventListener)
+      return () => target.removeEventListener("paste", handlePaste as EventListener)
+    }, [handlePaste])
+
+    const handleRemoveImage = (index: number, e?: React.MouseEvent<HTMLButtonElement>) => {
+      e?.stopPropagation()
+      setImagePreviews((prev) => prev.filter((_, i) => i !== index))
+    }
+
+    const handleAddReference = async (imageUrl: string) => {
+      if (imagePreviews.length >= MAX_IMAGES) {
+        setError(`이미지는 최대 ${MAX_IMAGES}개까지 첨부할 수 있습니다.`)
+        return
+      }
+      // URL을 그대로 추가 (API에서 URL/data URL 모두 처리)
+      setImagePreviews((prev) => [...prev, imageUrl])
+      setIsRefPopoverOpen(false)
+    }
+
+    const handleSubmit = async () => {
+      if (isGenerating) return
+      if (!value.trim() && imagePreviews.length === 0) return
+
+      setIsGenerating(true)
+      onGeneratingChange?.(true)
+      setError(null)
+
+      try {
+        const res = await fetch("/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: value.trim(),
+            images: imagePreviews,
+            aspectRatio: "16:9",
+          }),
+        })
+
+        const data = await res.json()
+
+        if (!res.ok) {
+          setError(data.error || "이미지 생성에 실패했습니다.")
+          return
+        }
+
+        if (data.imageData && onGenerated) {
+          onGenerated({
+            imageData: data.imageData,
+            mimeType: data.mimeType || "image/png",
+            text: data.text,
+            prompt: value.trim(),
+          })
+        }
+
+        setValue("")
+        setImagePreviews([])
+      } catch {
+        setError("네트워크 오류가 발생했습니다. 다시 시도해주세요.")
+      } finally {
+        setIsGenerating(false)
+        onGeneratingChange?.(false)
+      }
+    }
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault()
+        handleSubmit()
+      }
+    }
+
+    const hasValue = value.trim().length > 0 || imagePreviews.length > 0
+
+    return (
+      <div className="flex flex-col gap-3" data-prompt-area>
+        <div
+          className={cn(
+            "relative flex flex-col rounded-[28px] p-2 shadow-sm transition-colors bg-[#303030] border-transparent cursor-text overflow-hidden",
+            className
+          )}
+        >
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            className="hidden"
+            accept="image/*"
+            multiple
+          />
+
+          {/* 이미지 미리보기 영역 */}
+          {imagePreviews.length > 0 && (
+            <div className="flex flex-wrap gap-2 px-1 pt-1 mb-1">
+              {imagePreviews.map((src, index) => (
+                <Dialog
+                  key={index}
+                  open={selectedPreviewIndex === index}
+                  onOpenChange={(open) => setSelectedPreviewIndex(open ? index : null)}
                 >
-                  <PlusIcon className="h-6 w-6" />
-                  <span className="sr-only">Attach image</span>
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="top" showArrow={true}>
-                <p>Attach image</p>
-              </TooltipContent>
-            </Tooltip>
-
-            <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <PopoverTrigger asChild>
+                  <div className="relative group">
                     <button
                       type="button"
-                      className="flex h-8 items-center gap-2 rounded-full p-2 text-sm text-white transition-colors hover:bg-[#515151] focus-visible:outline-none"
+                      className="transition-transform"
+                      onClick={() => setSelectedPreviewIndex(index)}
                     >
-                      <Settings2Icon className="h-4 w-4" />
-                      {!selectedTool && "Tools"}
+                      <Image
+                        unoptimized={src.startsWith("data:")}
+                        src={src}
+                        alt={`첨부 이미지 ${index + 1}`}
+                        width={58}
+                        height={58}
+                        className="h-14.5 w-14.5 rounded-[1rem] object-cover"
+                      />
                     </button>
-                  </PopoverTrigger>
-                </TooltipTrigger>
-                <TooltipContent side="top" showArrow={true}>
-                  <p>Explore Tools</p>
-                </TooltipContent>
-              </Tooltip>
-              <PopoverContent side="top" align="start">
-                <div className="flex flex-col gap-1">
-                  {toolsList.map((tool) => (
                     <button
-                      key={tool.id}
-                      onClick={() => {
-                        setSelectedTool(tool.id)
-                        setIsPopoverOpen(false)
-                      }}
-                      className="flex w-full items-center gap-2 rounded-md p-2 text-left text-sm hover:bg-[#515151]"
+                      onClick={(e) => handleRemoveImage(index, e)}
+                      className="absolute -right-1 -top-1 z-10 flex h-4 w-4 items-center justify-center rounded-full bg-[#303030] text-white transition-colors hover:bg-[#515151] opacity-0 group-hover:opacity-100"
+                      aria-label="이미지 제거"
                     >
-                      <tool.icon className="h-4 w-4" />
-                      <span>{tool.name}</span>
-                      {tool.extra && <span className="ml-auto text-xs text-gray-400">{tool.extra}</span>}
+                      <XIcon className="h-3 w-3" />
                     </button>
-                  ))}
-                </div>
-              </PopoverContent>
-            </Popover>
-
-            {activeTool && (
-              <>
-                <div className="h-4 w-px bg-gray-600" />
-                <button
-                  onClick={() => setSelectedTool(null)}
-                  className="flex h-8 items-center gap-2 rounded-full px-2 text-sm hover:bg-[#3b4045] cursor-pointer text-[#99ceff] transition-colors"
-                >
-                  {ActiveToolIcon && <ActiveToolIcon className="h-4 w-4" />}
-                  {activeTool.shortName}
-                  <XIcon className="h-4 w-4" />
-                </button>
-              </>
-            )}
-
-            <div className="ml-auto flex items-center gap-2">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-white transition-colors hover:bg-[#515151] focus-visible:outline-none"
-                  >
-                    <MicIcon className="h-5 w-5" />
-                    <span className="sr-only">Record voice</span>
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="top" showArrow={true}>
-                  <p>Record voice</p>
-                </TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="submit"
-                    disabled={!hasValue}
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 bg-white text-black hover:bg-white/80 disabled:bg-[#515151] disabled:pointer-events-none"
-                  >
-                    <SendIcon className="h-6 w-6" />
-                    <span className="sr-only">Send message</span>
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="top" showArrow={true}>
-                  <p>Send</p>
-                </TooltipContent>
-              </Tooltip>
+                  </div>
+                  <DialogContent>
+                    <Image
+                      unoptimized={src.startsWith("data:")}
+                      src={src}
+                      alt={`첨부 이미지 ${index + 1} 확대`}
+                      width={800}
+                      height={600}
+                      className="w-full max-h-[95vh] object-contain rounded-[24px]"
+                    />
+                  </DialogContent>
+                </Dialog>
+              ))}
+              {imagePreviews.length > 0 && (
+                <span className="self-end pb-1 text-[10px] text-white/30">
+                  {imagePreviews.length}/{MAX_IMAGES}
+                </span>
+              )}
             </div>
+          )}
+
+          <textarea
+            ref={internalTextareaRef}
+            rows={1}
+            value={value}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
+            placeholder="썸네일을 설명해주세요..."
+            disabled={isGenerating}
+            className="w-full resize-none border-0 bg-transparent p-3 text-white placeholder:text-gray-400 focus:ring-0 focus-visible:outline-none min-h-12 disabled:opacity-50"
+            {...props}
+          />
+
+          <div className="mt-0.5 p-1 pt-0">
+            <TooltipProvider delayDuration={100}>
+              <div className="flex items-center gap-2">
+                {/* 이미지 첨부 버튼 */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={handlePlusClick}
+                      disabled={isGenerating || imagePreviews.length >= MAX_IMAGES}
+                      className="flex h-8 w-8 items-center justify-center rounded-full text-white transition-colors hover:bg-[#515151] focus-visible:outline-none disabled:opacity-50"
+                    >
+                      <PlusIcon className="h-6 w-6" />
+                      <span className="sr-only">이미지 첨부</span>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" showArrow={true}>
+                    <p>이미지 첨부 (최대 {MAX_IMAGES}개, 5MB)</p>
+                  </TooltipContent>
+                </Tooltip>
+
+                {/* 참조 버튼 */}
+                <Popover open={isRefPopoverOpen} onOpenChange={setIsRefPopoverOpen}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          disabled={isGenerating}
+                          className="flex h-8 items-center gap-2 rounded-full p-2 text-sm text-white transition-colors hover:bg-[#515151] focus-visible:outline-none disabled:opacity-50"
+                        >
+                          <ReferenceIcon className="h-4 w-4" />
+                          참조
+                        </button>
+                      </PopoverTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" showArrow={true}>
+                      <p>저장된 썸네일을 참조 이미지로 사용</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  <PopoverContent side="top" align="start">
+                    <p className="mb-2 text-xs text-white/50">저장된 썸네일을 클릭하여 참조로 추가</p>
+                    {isLoadingRefs ? (
+                      <div className="flex items-center justify-center py-6">
+                        <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+                      </div>
+                    ) : refThumbnails.length === 0 ? (
+                      <p className="py-6 text-center text-xs text-white/30">저장된 썸네일이 없습니다</p>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-1.5 max-h-48 overflow-y-auto scrollbar-thin">
+                        {refThumbnails.map((thumb) =>
+                          thumb.image_url ? (
+                            <button
+                              key={thumb.id}
+                              onClick={() => handleAddReference(thumb.image_url!)}
+                              className="relative aspect-video overflow-hidden rounded-lg border border-white/[0.06] hover:border-white/20 transition-all"
+                            >
+                              <Image
+                                src={thumb.image_url}
+                                alt={thumb.prompt || "썸네일"}
+                                fill
+                                sizes="80px"
+                                className="object-cover"
+                              />
+                            </button>
+                          ) : null
+                        )}
+                      </div>
+                    )}
+                  </PopoverContent>
+                </Popover>
+
+                <div className="ml-auto flex items-center gap-2">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        disabled={isGenerating}
+                        className="flex h-8 w-8 items-center justify-center rounded-full text-white transition-colors hover:bg-[#515151] focus-visible:outline-none disabled:opacity-50"
+                      >
+                        <MicIcon className="h-5 w-5" />
+                        <span className="sr-only">음성 녹음</span>
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" showArrow={true}>
+                      <p>음성 녹음</p>
+                    </TooltipContent>
+                  </Tooltip>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={handleSubmit}
+                        disabled={!hasValue || isGenerating}
+                        className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 bg-white text-black hover:bg-white/80 disabled:bg-[#515151] disabled:pointer-events-none"
+                      >
+                        {isGenerating ? (
+                          <LoaderIcon className="h-5 w-5 animate-spin" />
+                        ) : (
+                          <SendIcon className="h-6 w-6" />
+                        )}
+                        <span className="sr-only">전송</span>
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" showArrow={true}>
+                      <p>{isGenerating ? "생성 중..." : "전송"}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              </div>
+            </TooltipProvider>
           </div>
-        </TooltipProvider>
+          <BorderBeam
+            duration={6}
+            delay={0}
+            size={200}
+            className="from-transparent via-lime-500 to-transparent"
+          />
+          <BorderBeam
+            duration={6}
+            delay={2}
+            size={200}
+            className="from-transparent via-blue-500 to-transparent"
+          />
+          <BorderBeam
+            duration={6}
+            delay={4}
+            size={200}
+            className="from-transparent via-pink-500 to-transparent"
+          />
+        </div>
+
+        {/* 에러 메시지 */}
+        {error && (
+          <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
+            {error}
+          </div>
+        )}
       </div>
-      {/* <BorderBeam borderWidth={1.5} /> */}
-      <BorderBeam
-        duration={6}
-        delay={0}
-        size={200}
-        className="from-transparent via-lime-500 to-transparent"
-      />
-      <BorderBeam
-        duration={6}
-        delay={2}
-        size={200}
-        className="from-transparent via-blue-500 to-transparent"
-      />
-      <BorderBeam
-        duration={6}
-        delay={4}
-        size={200}
-        className="from-transparent via-pink-500 to-transparent"
-      />
-    </div>
-  )
-})
+    )
+  }
+)
 PromptArea.displayName = "PromptArea"
